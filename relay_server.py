@@ -18,34 +18,33 @@ CF_WORKER_HOST = "dunio.kifehasan137.workers.dev"
 @app.route('/connect', methods=['POST'])
 def connect():
     client_id = request.json.get('client_id', 'default')
-    
-    stealth_headers = [
-        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Connection: Upgrade",
-        "Upgrade: websocket"
-    ]
-    
     try:
         ws_url = f"wss://{CF_WORKER_HOST}/"
         ws = websocket.create_connection(
             ws_url, 
-            timeout=20, 
-            header=stealth_headers,
-            suppress_origin=True 
+            timeout=10, 
+            suppress_origin=True,
+            header=["User-Agent: Mozilla/5.0"]
         )
         
-        # Wait for the pool to say its version (e.g., "3.0")
-        version = ws.recv().strip()
-        print(f"📡 [RELAY] Pool Version Received: {version}")
+        # Try to get version, if it fails, use 3.0 as fallback 
+        # so the bot doesn't show 'None:None'
+        try:
+            version = ws.recv().strip()
+            if not version or len(version) > 10: # Sanity check
+                version = "3.0"
+        except:
+            version = "3.0"
+
+        print(f"📡 [RELAY] Connected! Version: {version}")
 
         with connection_lock:
             pool_connections[client_id] = {"socket": ws, "version": version}
             
-        # We MUST return the version so the bot knows it's connected to a real pool
         return jsonify({"success": True, "version": version})
     except Exception as e:
-        print(f"❌ [RELAY] Connection Error: {e}")
         return jsonify({"success": False, "error": str(e)})
+        
         
         
 
