@@ -14,21 +14,19 @@ connection_lock = threading.Lock()
 # PASTE YOUR CLOUDFLARE WORKER URL HERE (WITHOUT https://)
 CF_WORKER_HOST = "dunio.kifehasan137.workers.dev" 
 
+
 @app.route('/connect', methods=['POST'])
 def connect():
     client_id = request.json.get('client_id', 'default')
     
-    # Use a high-reputation Mac/Chrome User-Agent
-    stealth_headers = {
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Cache-Control": "no-cache"
-    }
+    stealth_headers = [
+        "User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Connection: Upgrade",
+        "Upgrade: websocket"
+    ]
     
     try:
         ws_url = f"wss://{CF_WORKER_HOST}/"
-        
-        # We use 'suppress_origin' to stop Cloudflare from seeing 'Render.com' in the headers
         ws = websocket.create_connection(
             ws_url, 
             timeout=20, 
@@ -36,14 +34,19 @@ def connect():
             suppress_origin=True 
         )
         
+        # Wait for the pool to say its version (e.g., "3.0")
         version = ws.recv().strip()
+        print(f"📡 [RELAY] Pool Version Received: {version}")
+
         with connection_lock:
             pool_connections[client_id] = {"socket": ws, "version": version}
             
+        # We MUST return the version so the bot knows it's connected to a real pool
         return jsonify({"success": True, "version": version})
     except Exception as e:
-        print(f"❌ [RELAY] Stealth Bridge Failed: {e}")
+        print(f"❌ [RELAY] Connection Error: {e}")
         return jsonify({"success": False, "error": str(e)})
+        
         
 
 
