@@ -1,5 +1,6 @@
-import eventlet
-eventlet.monkey_patch()
+from gevent import monkey
+monkey.patch_all()  # This replaces eventlet.monkey_patch()
+
 
 from flask import Flask, request, jsonify
 import socket
