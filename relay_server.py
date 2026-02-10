@@ -14,7 +14,6 @@ connection_lock = threading.Lock()
 # PASTE YOUR CLOUDFLARE WORKER URL HERE (WITHOUT https://)
 CF_WORKER_HOST = "dunio.kifehasan137.workers.dev" 
 
-
 @app.route('/connect', methods=['POST'])
 def connect():
     client_id = request.json.get('client_id', 'default')
@@ -22,31 +21,32 @@ def connect():
         ws_url = f"wss://{CF_WORKER_HOST}/"
         ws = websocket.create_connection(
             ws_url, 
-            timeout=10, 
+            timeout=30, # Increased timeout
             suppress_origin=True,
             header=["User-Agent: Mozilla/5.0"]
         )
         
-        # Try to get version, if it fails, use 3.0 as fallback 
-        # so the bot doesn't show 'None:None'
+        # GIVE THE BRIDGE TIME TO WAKE UP
+        time.sleep(2) 
+        
         try:
             version = ws.recv().strip()
-            if not version or len(version) > 10: # Sanity check
+            # If the pool is silent, it might be waiting for us.
+            # If we get nothing, we assume 3.0 to keep the bot moving.
+            if not version:
                 version = "3.0"
         except:
             version = "3.0"
 
-        print(f"📡 [RELAY] Connected! Version: {version}")
+        print(f"📡 [RELAY] Connection Established. Pool Version: {version}")
 
         with connection_lock:
             pool_connections[client_id] = {"socket": ws, "version": version}
             
         return jsonify({"success": True, "version": version})
     except Exception as e:
+        print(f"❌ [RELAY] Fatal Connection Error: {e}")
         return jsonify({"success": False, "error": str(e)})
-        
-        
-        
         
 
 
