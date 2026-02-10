@@ -1,5 +1,5 @@
 from gevent import monkey
-monkey.patch_all()  # This replaces eventlet.monkey_patch()
+monkey.patch_all()  # THIS REPLACES THE EVENTLET MONKEY PATCH
 
 
 from flask import Flask, request, jsonify
