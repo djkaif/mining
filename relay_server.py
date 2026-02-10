@@ -14,17 +14,16 @@ pool_connections = {}
 connection_lock = threading.Lock()
 
 def get_pool_info():
-    """Fetch pool IP but force bypass port 14808"""
+    """Force Port 80 - The ultimate firewall bypass"""
     try:
-        # We still fetch the IP to get the best server, but ignore their port 2813
+        # We try to get the IP, but force the port to 80
         r = requests.get("https://server.duinocoin.com/getPool", timeout=10).json()
         if r.get("success"):
-            print(f"📡 [RELAY] Found Pool: {r['ip']} - Forcing Port 14808")
-            return r["ip"], 14808 
-    except Exception as e:
-        print(f"⚠️ [RELAY] Pool fetch failed, using fallback: {e}")
+            return r["ip"], 80 
+    except:
+        pass
+    return "magi.duinocoin.com", 80 # Fallback to Port 80
     
-    return "magi.duinocoin.com", 14808 # Fallback host
 
 @app.route('/connect', methods=['POST'])
 def connect():
