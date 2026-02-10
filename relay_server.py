@@ -18,25 +18,34 @@ CF_WORKER_HOST = "dunio.kifehasan137.workers.dev"
 def connect():
     client_id = request.json.get('client_id', 'default')
     
+    # Use a high-reputation Mac/Chrome User-Agent
+    stealth_headers = {
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Cache-Control": "no-cache"
+    }
+    
     try:
-        # We connect to CLOUDFLARE on Port 443 (The "Stealth" route)
-        # Render sees this as standard web traffic to a trusted provider
         ws_url = f"wss://{CF_WORKER_HOST}/"
         
-        print(f"🕵️ [STEALTH] Connecting to Cloudflare Bridge: {CF_WORKER_HOST}")
-        ws = websocket.create_connection(ws_url, timeout=20)
+        # We use 'suppress_origin' to stop Cloudflare from seeing 'Render.com' in the headers
+        ws = websocket.create_connection(
+            ws_url, 
+            timeout=20, 
+            header=stealth_headers,
+            suppress_origin=True 
+        )
         
-        # Receive the Duco pool version
         version = ws.recv().strip()
-        
         with connection_lock:
             pool_connections[client_id] = {"socket": ws, "version": version}
             
-        print(f"✅ [RELAY] Stealth connection established! Pool Version: {version}")
         return jsonify({"success": True, "version": version})
     except Exception as e:
         print(f"❌ [RELAY] Stealth Bridge Failed: {e}")
         return jsonify({"success": False, "error": str(e)})
+        
+
 
 @app.route('/job', methods=['POST'])
 def job():
