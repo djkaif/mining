@@ -24,22 +24,27 @@ def get_pool_info():
 @app.route('/connect', methods=['POST'])
 def connect():
     client_id = request.json.get('client_id', 'default')
-    pool_ip = get_pool_info()
     
     try:
-        # We connect to the Official DUCO WebSocket Proxy (Port 14808 usually handles WS)
-        # If raw sockets are blocked, we use the WSS (Secure WebSocket) bridge
-        ws_url = f"ws://{pool_ip}:14808/" 
+        # Use the official Secure WebSocket bridge (WSS) on Port 443
+        # This is what the Web Wallet uses to bypass strict firewalls
+        ws_url = "wss://server.duinocoin.com:14808/" 
         
-        ws = websocket.create_connection(ws_url, timeout=15)
-        version = ws.recv().strip() # Receive version
+        print(f"🔌 [RELAY] Client {client_id} connecting to Secure Bridge...")
+        
+        # We use a 20-second timeout to give Render's slow network time to handshake
+        ws = websocket.create_connection(ws_url, timeout=20)
+        version = ws.recv().strip()
         
         with connection_lock:
             pool_connections[client_id] = {"socket": ws, "version": version}
             
+        print(f"✅ [RELAY] Connected via WSS Bridge! Pool Version: {version}")
         return jsonify({"success": True, "version": version})
     except Exception as e:
-        return jsonify({"success": False, "error": f"WS Bridge Failed: {e}"})
+        print(f"❌ [RELAY] WSS Bridge Failed: {e}")
+        return jsonify({"success": False, "error": f"WSS Bridge Failed: {e}"})
+        
 
 @app.route('/job', methods=['POST'])
 def job():
