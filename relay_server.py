@@ -5,13 +5,12 @@ from flask import Flask, request, jsonify
 import websocket
 import threading
 import time
-import requests
 
 app = Flask(__name__)
 pool_connections = {}
 connection_lock = threading.Lock()
 
-# PASTE YOUR CLOUDFLARE WORKER URL HERE (WITHOUT https://)
+# Ensure this is just the domain
 CF_WORKER_HOST = "dunio.kifehasan137.workers.dev" 
 
 @app.route('/connect', methods=['POST'])
@@ -21,50 +20,63 @@ def connect():
         ws_url = f"wss://{CF_WORKER_HOST}/"
         ws = websocket.create_connection(
             ws_url, 
-            timeout=30, # Increased timeout
+            timeout=20, 
             suppress_origin=True,
             header=["User-Agent: Mozilla/5.0"]
         )
         
-        # GIVE THE BRIDGE TIME TO WAKE UP
-        time.sleep(2) 
+        # 1. Wait for pool version
+        time.sleep(1)
+        version = ws.recv().strip()
         
-        try:
-            version = ws.recv().strip()
-            # If the pool is silent, it might be waiting for us.
-            # If we get nothing, we assume 3.0 to keep the bot moving.
-            if not version:
-                version = "3.0"
-        except:
+        # 2. Safety Fallback: If pool is silent, assume 3.0
+        if not version or len(version) > 10:
             version = "3.0"
-
-        print(f"📡 [RELAY] Connection Established. Pool Version: {version}")
 
         with connection_lock:
             pool_connections[client_id] = {"socket": ws, "version": version}
-            
-        return jsonify({"success": True, "version": version})
-    except Exception as e:
-        print(f"❌ [RELAY] Fatal Connection Error: {e}")
-        return jsonify({"success": False, "error": str(e)})
         
-
+        print(f"📡 [RELAY] {client_id} linked to Pool v{version}")
+            
+        # 3. We send EVERY possible key so the bot can't miss it
+        return jsonify({
+            "success": True, 
+            "version": version,
+            "pool_version": version,
+            "name": "Cloudflare-Bridge",
+            "pool_name": "Duco-Stealth-Pool"
+        })
+    except Exception as e:
+        print(f"❌ [RELAY] Connect Error: {e}")
+        return jsonify({"success": False, "error": str(e)})
 
 @app.route('/job', methods=['POST'])
 def job():
     data = request.json
     client_id = data.get('client_id', 'default')
-    username = data.get('username')
+    username = data.get('username', 'dj_kaif')
     
     with connection_lock:
         if client_id not in pool_connections:
-            return jsonify({"success": False, "error": "Relay not connected"})
+            return jsonify({"success": False, "error": "Not connected"})
         ws = pool_connections[client_id]['socket']
     
     try:
+        # Request a job
         ws.send(f"JOB,{username},LOW")
         job_data = ws.recv().strip()
-        return jsonify({"success": True, "job": job_data})
+        
+        # If the pool sends a 'MOTD' or 'NOTICE' instead of a job, skip it
+        if "MOTD" in job_data or "NOTICE" in job_data:
+            job_data = ws.recv().strip()
+
+        print(f"📦 [RELAY] Job Sent: {job_data[:20]}...")
+        
+        return jsonify({
+            "success": True, 
+            "job": job_data,
+            "result": job_data.split(",") # Some bots want the list, some want the string
+        })
     except Exception as e:
         return jsonify({"success": False, "error": str(e)})
 
@@ -89,11 +101,7 @@ def submit():
 
 @app.route('/status')
 def status():
-    return jsonify({"status": "online", "mode": "stealth-cloudflare"})
-
-@app.route('/')
-def home():
-    return "Stealth Cloudflare Relay is Active."
+    return jsonify({"status": "online", "active_clients": len(pool_connections)})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=10000)
