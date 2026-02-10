@@ -12,7 +12,7 @@ pool_connections = {}
 connection_lock = threading.Lock()
 
 # PASTE YOUR CLOUDFLARE WORKER URL HERE (WITHOUT https://)
-CF_WORKER_HOST = "dunio.kifehasan137.workers.dev/" 
+CF_WORKER_HOST = "dunio.kifehasan137.workers.dev" 
 
 @app.route('/connect', methods=['POST'])
 def connect():
